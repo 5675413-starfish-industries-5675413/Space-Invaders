@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Space Invaders with Boss</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: black;
+            color: white;
+            font-family: Arial, sans-serif;
+        }
+        canvas {
+            display: block;
+            margin: auto;
+            background: #000;
+            border: 2px solid white;
+        }
+        #levelComplete {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 32px;
+            color: white;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas" width="480" height="320"></canvas>
+    <div id="levelComplete">Level Complete!</div>
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const levelCompleteMessage = document.getElementById('levelComplete');
+
+        // Game variables
+        let spaceship = { x: canvas.width / 2 - 15, y: canvas.height - 30, width: 30, height: 15 };
+        let bullets = [];
+        let alienBullets = [];
+        let aliens = [];
+        let boss = null;
+        let score = 0;
+        let level = 1;
+        const alienRowCount = 2;
+        const alienColumnCount = 8;
+        const alienWidth = 40;
+        const alienHeight = 20;
+        const bossWidth = 60;
+        const bossHeight = 40;
+        let alienSpeed = 30;
+        let direction = 1;
+
+        function createAliens() {
+            aliens = [];
+            for (let r = 0; r < alienRowCount; r++) {
+                for (let c = 0; c < alienColumnCount; c++) {
+                    aliens.push({ x: c * (alienWidth + 10), y: r * (alienHeight + 10), width: alienWidth, height: alienHeight, hits: 0 });
+                }
+            }
+        }
+
+        // Create boss alien
+        function createBoss() {
+            boss = { x: canvas.width / 2 - bossWidth / 2, y: 50, width: bossWidth, height: bossHeight, hits: 0 };
+        }
+
+        // Control the spaceship
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft' && spaceship.x > 0) {
+                spaceship.x -= 10;
+            } else if (e.key === 'ArrowRight' && spaceship.x < canvas.width - spaceship.width) {
+                spaceship.x += 10;
+            } else if (e.key === ' ') {
+                bullets.push({ x: spaceship.x + spaceship.width / 2 - 2, y: spaceship.y, width: 4, height: 10 });
+            }
+        });
+
+        // Update game state
+        function update() {
+            bullets.forEach((bullet, index) => {
+                bullet.y -= 5;
+                if (bullet.y < 0) {
+                    bullets.splice(index, 1);
+                }
+
+                // Check for collision with aliens
+                aliens.forEach((alien, alienIndex) => {
+                    if (bullet.x < alien.x + alien.width &&
+                        bullet.x + bullet.width > alien.x &&
+                        bullet.y < alien.y + alien.height &&
+                        bullet.y + bullet.height > alien.y) {
+                        bullets.splice(index, 1);
+                        alien.hits++;
+                        if (alien.hits === 2) {
+                            aliens.splice(alienIndex, 1);
+                            score += 20;
+                        }
+                    }
+                });
+
+                // Check for collision with boss
+                if (boss) {
+                    if (bullet.x < boss.x + boss.width &&
+                        bullet.x + bullet.width > boss.x &&
+                        bullet.y < boss.y + boss.height &&
+                        bullet.y + bullet.height > boss.y) {
+                        bullets.splice(index, 1);
+                        boss.hits++;
+                        if (boss.hits === 5) {
+                            boss = null; // Boss defeated
+                            levelCompleteMessage.style.display = 'block';
+                            setTimeout(nextLevel, 2000);
+                        }
+                    }
+                }
+            });
+
+            // Move aliens side to side
+            if (aliens.length > 0) {
+                aliens.forEach(alien => {
+                    alien.x += direction * alienSpeed * 0.02;
+                });
+
+                // Change direction if aliens hit the wall
+                if (aliens[0].x < 0 || aliens[aliens.length - 1].x > canvas.width - alienWidth) {
+                    direction = -direction;
+                    aliens.forEach(alien => {
+                        alien.y += 10;
+                    });
+                }
+
+                // Handle alien shooting
+                if (Math.random() < 0.02) {
+                    const randomAlienIndex = Math.floor(Math.random() * aliens.length);
+                    const alien = aliens[randomAlienIndex];
+                    if (alien) {
+                        alienBullets.push({ x: alien.x + alien.width / 2 - 2, y: alien.y + alien.height, width: 4, height: 10 });
+                    }
+                }
+            }
+
+            // Move alien bullets
+            alienBullets.forEach((alienBullet, index) => {
+                alienBullet.y += 3;
+                if (alienBullet.y > canvas.height) {
+                    alienBullets.splice(index, 1);
+                }
+
+                // Check for collision with spaceship
+                if (alienBullet.x < spaceship.x + spaceship.width &&
+                    alienBullet.x + alienBullet.width > spaceship.x &&
+                    alienBullet.y < spaceship.y + spaceship.height &&
+                    alienBullet.y + alienBullet.height > spaceship.y) {
+                    alert("Game Over! Your score: " + score);
+                    document.location.reload(); // Restart the game
+                }
+            });
+
+            // Check for level completion
+            if (aliens.length === 0 && !boss) {
+                createBoss(); // Create boss if all aliens are defeated
+            }
+        }
+
+        // Go to the next level
+        function nextLevel() {
+            level++;
+            score += 100; // Bonus for completing the level
+            createAliens(); // Create new aliens for the next level
+            levelCompleteMessage.style.display = 'none'; // Hide level complete message
+        }
+
+        // Draw everything
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw spaceship
+            ctx.fillStyle = 'white';
+            ctx.fillRect(spaceship.x, spaceship.y, spaceship.width, spaceship.height);
+
+            // Draw bullets
+            bullets.forEach(bullet => {
+                ctx.fillStyle = 'red';
+                ctx.fillRect(bullet.x, bullet.y, bullet.width, bullet.height);
+            });
+
+            // Draw alien bullets
+            alienBullets.forEach(alienBullet => {
+                ctx.fillStyle = 'yellow';
+                ctx.fillRect(alienBullet.x, alienBullet.y, alienBullet.width, alienBullet.height);
+            });
+
+            // Draw aliens
+            aliens.forEach(alien => {
+                ctx.fillStyle = 'green';
+                ctx.fillRect(alien.x, alien.y, alien.width, alien.height);
+            });
+
+            // Draw boss
+            if (boss) {
+                ctx.fillStyle = 'blue';
+                ctx.fillRect(boss.x, boss.y, boss.width, boss.height);
+            }
+
+            // Draw score
+            ctx.fillStyle = 'white';
+            ctx.font = '16px Arial';
+            ctx.fillText(`Score: ${score}`, 10, 20);
+        }
+
+        // Main game loop
+        function gameLoop() {
+            update();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Start the game
+        createAliens();
+        gameLoop();
+    </script>
+</body>
+</html>
